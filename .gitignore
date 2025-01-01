@@ -1,0 +1,6 @@
+.env
+node_modules/
+venv/
+api-scrip-master-detailed.csv
+api-scrip-master.csv
+complete.csv

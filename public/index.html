@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Market Data</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+        integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@6.11.2/dist/protobuf.min.js"></script>
+    <style>
+        .card {
+            border: 1px solid #ddd;
+            margin: 10px;
+            padding: 15px;
+            border-radius: 5px;
+            width: 250px;
+            display: inline-block;
+            vertical-align: top;
+            background-color: #f9f9f9;
+        }
+
+        .card h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .card pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Live Market Data</h1>
+    <div id="cardsContainer"></div>
+    <script>
+        const socket = io.connect('http://localhost:3000');
+        const instruments = new Set();
+        let protobufRoot = null;
+        protobuf.load('MarketDataFeed.proto', function (err, root) {
+            if (err) throw err;
+            protobufRoot = root;
+            console.log("Protobuf Loaded Successfully");
+        });
+
+        socket.on('marketData', (data) => {
+            try {
+                const arrayBuffer = new Uint8Array(data);
+                const FeedResponse = protobufRoot.lookupType("com.upstox.marketdatafeeder.rpc.proto.FeedResponse");
+                const decodedMessage = FeedResponse.decode(arrayBuffer);
+                Object.keys(decodedMessage.feeds).forEach(instrumentKey => {
+                    const instrumentData = decodedMessage.feeds[instrumentKey];
+                    if (!instruments.has(instrumentKey)) {
+                        instruments.add(instrumentKey);
+                        createInstrumentCard(instrumentKey, instrumentData);
+                    } else {
+                        updateInstrumentCard(instrumentKey, instrumentData);
+                    }
+                });
+            } catch (e) {
+                console.error("Error decoding data:", e);
+            }
+        });
+
+        function createInstrumentCard(instrument, data) {
+            const cardsContainer = document.getElementById('cardsContainer');
+            const card = document.createElement('div');
+            card.classList.add('card');
+            const cardTitle = document.createElement('h3');
+            cardTitle.textContent = instrument;
+            card.appendChild(cardTitle);
+
+            const cardContent = document.createElement('pre');
+            const decodedDataJSON = JSON.stringify(data, null, 2);
+            cardContent.textContent = decodedDataJSON;
+            card.appendChild(cardContent);
+
+            cardsContainer.appendChild(card);
+        }
+
+        function updateInstrumentCard(instrument, data) {
+            const cardsContainer = document.getElementById('cardsContainer');
+            const cards = cardsContainer.getElementsByClassName('card');
+
+            for (let i = 0; i < cards.length; i++) {
+                const card = cards[i];
+                const cardTitle = card.querySelector('h3');
+
+                if (cardTitle && cardTitle.textContent === instrument) {
+                    const cardContent = card.querySelector('pre');
+                    const newDataJSON = JSON.stringify(data, null, 2);
+                    cardContent.textContent = newDataJSON;
+                    break;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
